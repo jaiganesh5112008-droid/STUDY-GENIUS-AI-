@@ -27,10 +27,17 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Check project
+      - name: Generate debug keystore
         run: |
-          ls -la
-          ls -la app
+          keytool -genkeypair -v \
+            -keystore "$GITHUB_WORKSPACE/debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Build APK
         run: gradle assembleDebug

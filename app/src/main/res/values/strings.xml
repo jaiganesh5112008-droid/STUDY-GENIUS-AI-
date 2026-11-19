@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">Study Genius AI</string>
+    <string name="app_tagline">Learn Smarter. Practice Better. Achieve More.</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_tools">Tools</string>
+    <string name="nav_chat">AI Chat</string>
+    <string name="nav_library">Library</string>
+    <string name="nav_profile">Profile</string>
+    <string name="cd_app_logo">Study Genius AI logo featuring an AI brain and open book</string>
+    <string name="cd_study_companion">3D futuristic Study Genius AI companion mascot</string>
+    <string name="cd_hero_banner">Futuristic dark navy learning banner</string>
+    <string name="cd_navigate_back">Navigate back</string>
+    <string name="cd_language_selector">Select preferred study language</string>
+    <string name="cd_theme_toggle">Toggle light and dark theme</string>
+    <string name="cd_attach_image">Attach photo for visual doubt solving</string>
+    <string name="cd_send_message">Send message to AI Study Assistant</string>
+    <string name="cd_copy_text">Copy content to clipboard</string>
+    <string name="cd_save_library">Save to My Library</string>
+    <string name="cd_regenerate">Regenerate AI answer</string>
+    <string name="cd_clear_chat">Clear conversation history</string>
+    <string name="cd_share_content">Export and share content</string>
+    <string name="cd_delete_item">Delete item</string>
+    <string name="cd_rename_item">Rename item</string>
+    <string name="cd_mark_review">Mark question for review</string>
+    <string name="cd_question_navigator">Open question navigator</string>
+    <string name="cd_add_item">Add new item</string>
+</resources>

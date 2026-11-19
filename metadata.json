@@ -1,0 +1,6 @@
+{
+  "name": "Study Genius AI",
+  "description": "AI-powered education assistant with PDF/Image to Quiz, interactive mock tests, smart notes, flashcards, study planner, and multilingual tutoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

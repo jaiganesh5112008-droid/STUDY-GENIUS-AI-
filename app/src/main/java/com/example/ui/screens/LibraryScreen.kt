@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Description
@@ -36,12 +37,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,7 +62,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
 import com.example.ai.formatFileSize
-import com.example.data.StudyNoteEntity
+import com.example.data.CloudStudyNote
+import com.example.data.CloudUiState
+import com.example.data.UploadedDocEntity
+import com.example.ui.components.AiErrorCard
 import com.example.ui.components.GlassCard
 import com.example.ui.components.StudyEmptyState
 import com.example.ui.components.StudyTopBar
@@ -77,7 +83,7 @@ private data class RenameTarget(
 @Composable
 fun LibraryScreen(
     viewModel: PlannerLibraryViewModel,
-    onOpenQuiz: (Long) -> Unit,
+    onOpenQuiz: (String) -> Unit,
     onOpenFlashcardDeck: (Long) -> Unit,
     onBack: (() -> Unit)? = null
 ) {
@@ -85,13 +91,34 @@ fun LibraryScreen(
     val extended = LocalStudyColors.current
     val query by viewModel.searchQuery.collectAsStateWithLifecycle()
     val filter by viewModel.selectedFilter.collectAsStateWithLifecycle()
-    val quizzes by viewModel.quizzes.collectAsStateWithLifecycle()
-    val attempts by viewModel.attempts.collectAsStateWithLifecycle()
-    val notes by viewModel.notes.collectAsStateWithLifecycle()
+    val quizzesState by viewModel.quizzesState.collectAsStateWithLifecycle()
+    val attemptsState by viewModel.attemptsState.collectAsStateWithLifecycle()
+    val notesState by viewModel.notesState.collectAsStateWithLifecycle()
     val decks by viewModel.flashcardDecks.collectAsStateWithLifecycle()
     val docs by viewModel.uploadedDocs.collectAsStateWithLifecycle()
+    val actionMessage by viewModel.actionMessage.collectAsStateWithLifecycle()
 
-    var viewingNote by remember { mutableStateOf<StudyNoteEntity?>(null) }
+    LaunchedEffect(actionMessage) {
+        actionMessage?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+            viewModel.clearActionMessage()
+        }
+    }
+
+    val quizzes = (quizzesState as? CloudUiState.Success)?.data.orEmpty()
+    val attempts = (attemptsState as? CloudUiState.Success)?.data.orEmpty()
+    val notes = (notesState as? CloudUiState.Success)?.data.orEmpty()
+
+    val isCloudLoading = quizzesState is CloudUiState.Loading ||
+        attemptsState is CloudUiState.Loading ||
+        notesState is CloudUiState.Loading
+
+    val cloudError = (quizzesState as? CloudUiState.Error)?.message
+        ?: (notesState as? CloudUiState.Error)?.message
+        ?: (attemptsState as? CloudUiState.Error)?.message
+
+    var viewingNote by remember { mutableStateOf<CloudStudyNote?>(null) }
+    var viewingDoc by remember { mutableStateOf<UploadedDocEntity?>(null) }
     var renameTarget by remember { mutableStateOf<RenameTarget?>(null) }
 
     val qLower = query.trim().lowercase()
@@ -126,9 +153,27 @@ fun LibraryScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         StudyTopBar(
             title = "My Library",
-            subtitle = "Offline quizzes, notes, flashcards & documents",
-            onBack = onBack
+            subtitle = "Cloud-synced notes, quizzes & history + local flashcards",
+            onBack = onBack,
+            actions = {
+                Icon(
+                    imageVector = Icons.Filled.CloudDone,
+                    contentDescription = stringResource(R.string.cd_cloud_sync),
+                    tint = if (cloudError == null) extended.emeraldGlow else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         )
+
+        if (isCloudLoading) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                color = extended.emeraldGlow,
+                trackColor = extended.glassBorder
+            )
+        }
 
         OutlinedTextField(
             value = query,
@@ -164,18 +209,24 @@ fun LibraryScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (totalMatches == 0) {
+            if (cloudError != null) {
+                item {
+                    AiErrorCard(message = cloudError)
+                }
+            }
+
+            if (totalMatches == 0 && !isCloudLoading) {
                 item {
                     StudyEmptyState(
                         icon = Icons.Filled.FolderOpen,
                         title = "Nothing saved here yet",
-                        subtitle = "Generated quizzes, saved notes, flashcards, AI answers, and uploaded documents appear here automatically for offline access."
+                        subtitle = "Generated quizzes, saved notes, and quiz results sync automatically to Cloud Firestore for your account."
                     )
                 }
             }
 
             if (filteredQuizzes.isNotEmpty()) {
-                item { SectionHeader("Saved Quizzes (${filteredQuizzes.size})") }
+                item { SectionHeader("Saved Cloud Quizzes (${filteredQuizzes.size})") }
                 items(filteredQuizzes, key = { "quiz_${it.id}" }) { quiz ->
                     LibraryItemCard(
                         icon = Icons.Filled.Quiz,
@@ -195,7 +246,7 @@ fun LibraryScreen(
             }
 
             if (filteredNotes.isNotEmpty()) {
-                item { SectionHeader("Notes, Summaries & AI Answers (${filteredNotes.size})") }
+                item { SectionHeader("Cloud Notes, Summaries & AI Answers (${filteredNotes.size})") }
                 items(filteredNotes, key = { "note_${it.id}" }) { note ->
                     val badgeLabel = when (note.category) {
                         "SUMMARY" -> "Summary"
@@ -240,7 +291,7 @@ fun LibraryScreen(
             }
 
             if (filteredAttempts.isNotEmpty()) {
-                item { SectionHeader("Quiz & Mock Test Results (${filteredAttempts.size})") }
+                item { SectionHeader("Cloud Quiz & Mock Test History (${filteredAttempts.size})") }
                 items(filteredAttempts, key = { "attempt_${it.id}" }) { attempt ->
                     LibraryItemCard(
                         icon = Icons.Filled.PlayArrow,
@@ -263,8 +314,8 @@ fun LibraryScreen(
                         accent = extended.violetGlow,
                         title = doc.fileName,
                         subtitle = "${formatFileSize(doc.sizeBytes)} • ${doc.preview.take(60)}",
-                        badge = "File",
-                        onClick = {},
+                        badge = "View",
+                        onClick = { viewingDoc = doc },
                         onRename = {
                             renameTarget = RenameTarget(doc.fileName) { newName ->
                                 viewModel.renameDoc(doc.id, newName)
@@ -316,6 +367,43 @@ fun LibraryScreen(
                         Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.cd_share_content))
                     }
                     TextButton(onClick = { viewingNote = null }) {
+                        Text("Close")
+                    }
+                }
+            }
+        )
+    }
+
+    // Uploaded Document Details Dialog
+    viewingDoc?.let { doc ->
+        AlertDialog(
+            onDismissRequest = { viewingDoc = null },
+            title = { Text(doc.fileName, style = MaterialTheme.typography.titleLarge) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "${doc.mimeType} • ${formatFileSize(doc.sizeBytes)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = extended.cyanGlow
+                    )
+                    Text(
+                        text = doc.preview.ifBlank { "Document uploaded and indexed in Study Genius AI." },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (doc.preview.isNotBlank()) {
+                        IconButton(onClick = {
+                            copyTextToClipboard(context, doc.fileName, doc.preview)
+                            Toast.makeText(context, "Copied preview", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.cd_copy_text))
+                        }
+                    }
+                    TextButton(onClick = { viewingDoc = null }) {
                         Text("Close")
                     }
                 }
@@ -423,7 +511,7 @@ private fun LibraryItemCard(
                 )
             }
             if (onRename != null) {
-                IconButton(onClick = onRename, modifier = Modifier.size(38.dp)) {
+                IconButton(onClick = onRename, modifier = Modifier.size(48.dp)) {
                     Icon(
                         Icons.Filled.Edit,
                         contentDescription = stringResource(R.string.cd_rename_item),
@@ -432,7 +520,7 @@ private fun LibraryItemCard(
                     )
                 }
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(38.dp)) {
+            IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
                 Icon(
                     Icons.Filled.DeleteOutline,
                     contentDescription = stringResource(R.string.cd_delete_item),

@@ -11,8 +11,8 @@ import com.example.ai.PreparedMaterial
 import com.example.ai.StudyAiService
 import com.example.data.ChatMessageEntity
 import com.example.data.StudyLanguage
-import com.example.data.StudyNoteEntity
 import com.example.data.StudyRepository
+import com.example.data.friendlyFirestoreMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,12 +32,14 @@ data class ChatUiState(
     val attachedImageName: String? = null,
     val errorMessage: String? = null,
     val lastUserPrompt: String? = null,
+    val lastAttachedBitmap: Bitmap? = null,
     val snackbarMessage: String? = null
 )
 
 class ChatViewModel(
     private val repository: StudyRepository,
-    private val aiService: StudyAiService
+    private val aiService: StudyAiService,
+    private val currentUserId: String
 ) : ViewModel() {
 
     val messages: StateFlow<List<ChatMessageEntity>> = repository.chatMessages
@@ -106,6 +108,7 @@ class ChatViewModel(
                     streamingText = "",
                     errorMessage = null,
                     lastUserPrompt = effectivePrompt,
+                    lastAttachedBitmap = bitmapToSend,
                     attachedImage = null,
                     attachedImageName = null
                 )
@@ -190,7 +193,8 @@ class ChatViewModel(
                     subject = lastUser.subject,
                     mode = lastUser.mode,
                     language = language,
-                    recentHistory = historyPairs
+                    recentHistory = historyPairs,
+                    attachedBitmap = if (lastUser.hasImage) _uiState.value.lastAttachedBitmap else null
                 ).collect { partial ->
                     finalAnswer = partial
                     _uiState.update { it.copy(streamingText = partial) }
@@ -230,17 +234,22 @@ class ChatViewModel(
                 ?.ifBlank { "Saved AI Explanation" }
                 ?: "Saved AI Explanation"
 
-            repository.saveNote(
-                StudyNoteEntity(
-                    title = title,
-                    subject = message.subject,
-                    category = "AI_ANSWER",
-                    style = message.mode,
-                    content = message.text
-                )
+            val res = repository.saveCloudNote(
+                userId = currentUserId,
+                title = title,
+                subject = message.subject,
+                category = "AI_ANSWER",
+                style = message.mode,
+                content = message.text
             )
-            repository.markChatMessageSaved(message.id)
-            _uiState.update { it.copy(snackbarMessage = "Saved answer to My Library") }
+            res.onSuccess {
+                repository.markChatMessageSaved(message.id)
+                _uiState.update { it.copy(snackbarMessage = "Saved answer to Cloud Library") }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(errorMessage = friendlyFirestoreMessage(err, "Failed to save answer to cloud."))
+                }
+            }
         }
     }
 

@@ -31,6 +31,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Bookmark
@@ -68,6 +70,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -120,7 +123,8 @@ fun ChatAssistantScreen(
 
     LaunchedEffect(messages.size, uiState.streamingText.length) {
         if (messages.isNotEmpty() || uiState.isStreaming) {
-            listState.animateScrollToItem((messages.size + if (uiState.isStreaming) 1 else 0).coerceAtLeast(0))
+            val targetIdx = (messages.size - 1 + if (uiState.isStreaming) 1 else 0).coerceAtLeast(0)
+            listState.animateScrollToItem(targetIdx)
         }
     }
 
@@ -138,13 +142,21 @@ fun ChatAssistantScreen(
         }
     }
 
+    fun startCameraIntent() {
+        runCatching {
+            val uri = DocumentProcessor.createCameraCaptureUri(context)
+            pendingCameraUri = uri
+            takePictureLauncher.launch(uri)
+        }.onFailure {
+            Toast.makeText(context, "No camera app available on this device. Try Gallery instead.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            val uri = DocumentProcessor.createCameraCaptureUri(context)
-            pendingCameraUri = uri
-            takePictureLauncher.launch(uri)
+            startCameraIntent()
         } else {
             Toast.makeText(context, "Camera permission is required to snap study problems.", Toast.LENGTH_SHORT).show()
         }
@@ -154,9 +166,7 @@ fun ChatAssistantScreen(
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
         if (granted) {
-            val uri = DocumentProcessor.createCameraCaptureUri(context)
-            pendingCameraUri = uri
-            takePictureLauncher.launch(uri)
+            startCameraIntent()
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
@@ -411,6 +421,7 @@ fun ChatAssistantScreen(
                         tint = extended.electricBlue
                     )
                 }
+                val canSend = !uiState.isStreaming && (inputText.isNotBlank() || uiState.attachedImage != null)
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
@@ -424,9 +435,18 @@ fun ChatAssistantScreen(
                         )
                     },
                     maxLines = 4,
-                    shape = RoundedCornerShape(20.dp)
+                    shape = RoundedCornerShape(20.dp),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(
+                        onSend = {
+                            if (canSend) {
+                                val toSend = inputText
+                                inputText = ""
+                                viewModel.sendMessage(toSend, language)
+                            }
+                        }
+                    )
                 )
-                val canSend = !uiState.isStreaming && (inputText.isNotBlank() || uiState.attachedImage != null)
                 Box(
                     modifier = Modifier
                         .size(48.dp)

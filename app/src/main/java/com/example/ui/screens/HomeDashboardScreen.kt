@@ -86,7 +86,7 @@ fun HomeDashboardScreen(
     onOpenLanguagePicker: () -> Unit,
     onToggleTheme: (Boolean) -> Unit,
     onNavigateTool: (String) -> Unit,
-    onOpenQuiz: (Long) -> Unit
+    onOpenQuiz: (String) -> Unit
 ) {
     val extended = LocalStudyColors.current
     val quotes = remember {

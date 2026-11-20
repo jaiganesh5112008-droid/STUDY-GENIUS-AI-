@@ -10,10 +10,9 @@ import com.example.ai.PreparedMaterial
 import com.example.ai.StudyAiService
 import com.example.data.QuestionType
 import com.example.data.QuizDifficulty
-import com.example.data.QuizEntity
-import com.example.data.StudyJsonCodec
 import com.example.data.StudyLanguage
 import com.example.data.StudyRepository
+import com.example.data.friendlyFirestoreMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,12 +39,13 @@ data class QuizBuilderUiState(
     val isReadingFile: Boolean = false,
     val isGenerating: Boolean = false,
     val errorMessage: String? = null,
-    val generatedQuizId: Long? = null
+    val generatedQuizId: String? = null
 )
 
 class QuizHubViewModel(
     private val repository: StudyRepository,
-    private val aiService: StudyAiService
+    private val aiService: StudyAiService,
+    private val currentUserId: String
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QuizBuilderUiState())
@@ -132,11 +132,11 @@ class QuizHubViewModel(
                 return
             }
         } else {
-            if (state.material == null && state.pastedNotes.trim().length < 25) {
+            if (state.material == null && state.pastedNotes.trim().length < 10) {
                 val msg = if (state.mode == QuizBuilderMode.IMAGE_TO_QUIZ) {
                     "Please capture a photo or upload a study image first."
                 } else {
-                    "Please upload a readable PDF, DOCX, TXT, Image, or paste at least a short paragraph of study notes."
+                    "Please upload a readable PDF, DOCX, TXT, Image, or paste your study notes first."
                 }
                 _uiState.update { it.copy(errorMessage = msg) }
                 return
@@ -167,25 +167,32 @@ class QuizHubViewModel(
                     else -> "NOTES"
                 }
 
-                val quizId = repository.saveQuiz(
-                    QuizEntity(
-                        title = payload.title,
-                        subject = payload.subject,
-                        sourceType = sourceType,
-                        sourceName = state.material?.displayName ?: state.topic.ifBlank { state.subject },
-                        difficulty = state.difficulty.label,
-                        questionType = state.questionType.name,
-                        durationMinutes = state.durationMinutes,
-                        questionCount = payload.questions.size,
-                        questionsJson = StudyJsonCodec.encodeQuestions(payload.questions)
-                    )
+                val saveResult = repository.saveCloudQuiz(
+                    userId = currentUserId,
+                    title = payload.title,
+                    subject = payload.subject,
+                    sourceType = sourceType,
+                    sourceName = state.material?.displayName ?: state.topic.ifBlank { state.subject },
+                    difficulty = state.difficulty.label,
+                    questionType = state.questionType.name,
+                    durationMinutes = state.durationMinutes,
+                    questions = payload.questions
                 )
 
-                _uiState.update {
-                    it.copy(
-                        isGenerating = false,
-                        generatedQuizId = quizId
-                    )
+                saveResult.onSuccess { quizId ->
+                    _uiState.update {
+                        it.copy(
+                            isGenerating = false,
+                            generatedQuizId = quizId
+                        )
+                    }
+                }.onFailure { err ->
+                    _uiState.update {
+                        it.copy(
+                            isGenerating = false,
+                            errorMessage = friendlyFirestoreMessage(err, "Quiz generated, but failed to save to cloud.")
+                        )
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e

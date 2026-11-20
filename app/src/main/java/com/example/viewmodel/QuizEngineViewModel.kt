@@ -2,12 +2,11 @@ package com.example.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.CloudQuiz
 import com.example.data.QuestionType
-import com.example.data.QuizAttemptEntity
-import com.example.data.QuizEntity
 import com.example.data.QuizQuestion
-import com.example.data.StudyJsonCodec
 import com.example.data.StudyRepository
+import com.example.data.friendlyFirestoreMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +23,7 @@ data class GradedQuestionResult(
 
 data class QuizEngineUiState(
     val isLoading: Boolean = true,
-    val quiz: QuizEntity? = null,
+    val quiz: CloudQuiz? = null,
     val questions: List<QuizQuestion> = emptyList(),
     val currentIndex: Int = 0,
     val userAnswers: Map<Int, String> = emptyMap(),
@@ -39,7 +38,8 @@ data class QuizEngineUiState(
 )
 
 class QuizEngineViewModel(
-    private val repository: StudyRepository
+    private val repository: StudyRepository,
+    private val currentUserId: String
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QuizEngineUiState())
@@ -47,19 +47,26 @@ class QuizEngineViewModel(
 
     private var timerJob: Job? = null
 
-    fun loadQuiz(quizId: Long) {
+    fun loadQuiz(quizId: String) {
         timerJob?.cancel()
         viewModelScope.launch {
             _uiState.value = QuizEngineUiState(isLoading = true)
-            val entity = repository.getQuizById(quizId)
-            if (entity == null) {
+            val result = repository.getCloudQuizById(currentUserId, quizId)
+            val entity = result.getOrElse { err ->
                 _uiState.value = QuizEngineUiState(
                     isLoading = false,
-                    errorMessage = "Quiz could not be found in local storage."
+                    errorMessage = friendlyFirestoreMessage(err, "Failed to load quiz from Cloud Firestore.")
                 )
                 return@launch
             }
-            val parsedQuestions = StudyJsonCodec.decodeQuestions(entity.questionsJson)
+            if (entity == null) {
+                _uiState.value = QuizEngineUiState(
+                    isLoading = false,
+                    errorMessage = "Quiz could not be found in your cloud library."
+                )
+                return@launch
+            }
+            val parsedQuestions = entity.toQuizQuestions()
             if (parsedQuestions.isEmpty()) {
                 _uiState.value = QuizEngineUiState(
                     isLoading = false,
@@ -167,19 +174,24 @@ class QuizEngineViewModel(
         }
 
         viewModelScope.launch {
-            repository.saveAttempt(
-                QuizAttemptEntity(
-                    quizId = state.quiz.id,
-                    quizTitle = state.quiz.title,
-                    subject = state.quiz.subject,
-                    isMockTest = state.quiz.sourceType == "MOCK_TEST",
-                    score = correctCount,
-                    totalQuestions = graded.size,
-                    percentage = percentage,
-                    timeSpentSeconds = timeSpent,
-                    userAnswersJson = StudyJsonCodec.encodeAnswersMap(state.userAnswers)
-                )
-            )
+            repository.saveCloudAttempt(
+                userId = currentUserId,
+                quizId = state.quiz.id,
+                quizTitle = state.quiz.title,
+                subject = state.quiz.subject,
+                mockTest = state.quiz.sourceType == "MOCK_TEST",
+                score = correctCount,
+                totalQuestions = graded.size,
+                percentage = percentage,
+                timeSpentSeconds = timeSpent,
+                userAnswers = state.userAnswers
+            ).onFailure { err ->
+                _uiState.update {
+                    it.copy(
+                        errorMessage = friendlyFirestoreMessage(err, "Result scored, but failed to sync to cloud history.")
+                    )
+                }
+            }
         }
     }
 

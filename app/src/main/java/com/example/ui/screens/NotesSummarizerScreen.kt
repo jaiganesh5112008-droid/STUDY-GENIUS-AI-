@@ -7,6 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -129,7 +130,7 @@ fun NotesSummarizerScreen(
                 .padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            val tabs = listOf(false to "AI Notes Generator", true to "PDF Summarizer")
+            val tabs = listOf(false to "Notes Generator", true to "PDF Summarizer")
             tabs.forEach { (isSum, label) ->
                 val active = uiState.isSummarizerTab == isSum
                 Surface(
@@ -142,14 +143,19 @@ fun NotesSummarizerScreen(
                     color = if (active) extended.emeraldGlow else extended.glassSurface,
                     border = BorderStroke(1.dp, if (active) extended.emeraldGlow else extended.glassBorder)
                 ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
-                        ),
-                        color = if (active) Color(0xFF06101F) else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 11.dp, horizontal = 12.dp)
-                    )
+                    Box(
+                        modifier = Modifier.padding(vertical = 11.dp, horizontal = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            color = if (active) Color(0xFF06101F) else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         }
@@ -223,6 +229,14 @@ fun NotesSummarizerScreen(
                             } else {
                                 "Attach Reference Document (Optional)"
                             }
+                        )
+                    }
+
+                    if (uiState.isReadingFile) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        AiThinkingBanner(
+                            title = "Reading uploaded document...",
+                            subtitle = "Extracting text and verifying file format"
                         )
                     }
 

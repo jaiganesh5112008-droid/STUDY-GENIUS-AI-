@@ -74,7 +74,7 @@ import com.example.viewmodel.QuizEngineViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuizEngineScreen(
-    quizId: Long,
+    quizId: String,
     viewModel: QuizEngineViewModel,
     onBack: () -> Unit
 ) {
@@ -94,7 +94,7 @@ fun QuizEngineScreen(
         return
     }
 
-    if (uiState.errorMessage != null || uiState.quiz == null) {
+    if (uiState.quiz == null) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             StudyTopBar(title = "Quiz Engine", onBack = onBack)
             Spacer(modifier = Modifier.height(16.dp))
@@ -456,6 +456,33 @@ fun QuizEngineScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    listOf(
+                        "Current" to extended.electricBlue,
+                        "Answered" to extended.emeraldGlow,
+                        "Review" to extended.amberWarning
+                    ).forEach { (label, color) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(14.dp))
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(5),

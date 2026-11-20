@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="fb_fallback_app_id" translatable="false">1:1026133222338:android:37bfb2998a4f2936b36c5b</string>
+    <string name="fb_fallback_api_key" translatable="false">AIzaSyA-YHr3i4QNz5EnKZRxw8yZ4NgXgXD9BJI</string>
+    <string name="fb_fallback_project_id" translatable="false">gen-lang-client-0176688633</string>
+    <string name="fb_fallback_gcm_sender_id" translatable="false">1026133222338</string>
+    <string name="fb_fallback_storage_bucket" translatable="false">gen-lang-client-0176688633.firebasestorage.app</string>
+</resources>

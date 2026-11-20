@@ -24,4 +24,9 @@
     <string name="cd_mark_review">Mark question for review</string>
     <string name="cd_question_navigator">Open question navigator</string>
     <string name="cd_add_item">Add new item</string>
+    <string name="action_sign_in_google">Sign in with Google</string>
+    <string name="action_sign_out">Sign Out</string>
+    <string name="cd_sign_in_google">Sign in with your Google account</string>
+    <string name="cd_sign_out">Sign out of your Google account</string>
+    <string name="cd_cloud_sync">Cloud Firestore sync status</string>
 </resources>

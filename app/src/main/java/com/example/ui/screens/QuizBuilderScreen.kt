@@ -84,7 +84,7 @@ fun QuizBuilderScreen(
     initialMode: QuizBuilderMode,
     language: StudyLanguage,
     onOpenLanguagePicker: () -> Unit,
-    onQuizGenerated: (Long) -> Unit,
+    onQuizGenerated: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -128,13 +128,21 @@ fun QuizBuilderScreen(
         }
     }
 
+    fun startCameraIntent() {
+        runCatching {
+            val uri = DocumentProcessor.createCameraCaptureUri(context)
+            pendingCameraUri = uri
+            takePicture.launch(uri)
+        }.onFailure {
+            Toast.makeText(context, "No camera app available on this device. Try Gallery instead.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            val uri = DocumentProcessor.createCameraCaptureUri(context)
-            pendingCameraUri = uri
-            takePicture.launch(uri)
+            startCameraIntent()
         } else {
             Toast.makeText(context, "Camera permission is needed to capture study pages.", Toast.LENGTH_SHORT).show()
         }
@@ -144,9 +152,7 @@ fun QuizBuilderScreen(
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
         if (granted) {
-            val uri = DocumentProcessor.createCameraCaptureUri(context)
-            pendingCameraUri = uri
-            takePicture.launch(uri)
+            startCameraIntent()
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
@@ -166,14 +172,19 @@ fun QuizBuilderScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            val shortLabels = mapOf(
+                QuizBuilderMode.PDF_TO_QUIZ to "PDF / Docs",
+                QuizBuilderMode.IMAGE_TO_QUIZ to "Image Scan",
+                QuizBuilderMode.MOCK_TEST to "Mock Test"
+            )
             QuizBuilderMode.entries.forEach { mode ->
                 val active = uiState.mode == mode
                 Surface(
                     modifier = Modifier
+                        .weight(1f)
                         .clip(RoundedCornerShape(14.dp))
                         .clickable { viewModel.setMode(mode) }
                         .testTag("quiz_mode_${mode.name}"),
@@ -181,14 +192,19 @@ fun QuizBuilderScreen(
                     color = if (active) extended.emeraldGlow else extended.glassSurface,
                     border = BorderStroke(1.dp, if (active) extended.emeraldGlow else extended.glassBorder)
                 ) {
-                    Text(
-                        text = mode.title,
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
-                        ),
-                        color = if (active) Color(0xFF06101F) else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
-                    )
+                    Box(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = shortLabels[mode] ?: mode.title,
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            color = if (active) Color(0xFF06101F) else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         }
@@ -422,12 +438,31 @@ fun QuizBuilderScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         QuizDifficulty.entries.forEach { diff ->
-                            FilterChip(
-                                selected = uiState.difficulty == diff,
-                                onClick = { viewModel.setDifficulty(diff) },
-                                label = { Text(diff.label) },
-                                modifier = Modifier.weight(1f)
-                            )
+                            val selected = uiState.difficulty == diff
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { viewModel.setDifficulty(diff) }
+                                    .testTag("quiz_difficulty_${diff.name}"),
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (selected) extended.cyanGlow.copy(alpha = 0.2f) else extended.cardElevated,
+                                border = BorderStroke(1.dp, if (selected) extended.emeraldGlow else extended.glassBorder)
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = diff.label,
+                                        style = MaterialTheme.typography.labelLarge.copy(
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                        ),
+                                        color = if (selected) extended.emeraldGlow else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -438,18 +473,40 @@ fun QuizBuilderScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        QuestionType.entries.forEach { type ->
-                            FilterChip(
-                                selected = uiState.questionType == type,
-                                onClick = { viewModel.setQuestionType(type) },
-                                label = { Text(type.label) }
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        QuestionType.entries.chunked(2).forEach { pair ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                pair.forEach { type ->
+                                    val selected = uiState.questionType == type
+                                    Surface(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { viewModel.setQuestionType(type) }
+                                            .testTag("quiz_type_${type.name}"),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (selected) extended.electricBlue.copy(alpha = 0.22f) else extended.cardElevated,
+                                        border = BorderStroke(1.dp, if (selected) extended.cyanGlow else extended.glassBorder)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = type.label,
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                                ),
+                                                color = if (selected) extended.emeraldGlow else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 

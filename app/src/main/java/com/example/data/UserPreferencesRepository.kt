@@ -94,4 +94,16 @@ class UserPreferencesRepository(private val context: Context) {
             prefs[Keys.LAST_STUDY_DAY] = today
         }
     }
+
+    suspend fun restorePreferences(restored: UserPreferences) {
+        context.studyPrefsDataStore.edit { prefs ->
+            prefs[Keys.DARK_THEME] = restored.darkTheme
+            prefs[Keys.LANGUAGE] = restored.language.name
+            prefs[Keys.STUDENT_NAME] = restored.studentName.trim().ifBlank { "Scholar" }
+            prefs[Keys.WEEKLY_GOAL_MIN] = restored.weeklyGoalMinutes.coerceIn(30, 1200)
+            prefs[Keys.STUDIED_MIN] = restored.studiedMinutesThisWeek.coerceAtLeast(0)
+            prefs[Keys.STREAK_DAYS] = restored.streakDays.coerceAtLeast(1)
+            prefs[Keys.LAST_STUDY_DAY] = restored.lastStudyEpochDay
+        }
+    }
 }

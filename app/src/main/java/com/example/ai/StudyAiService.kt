@@ -1,5 +1,6 @@
 package com.example.ai
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import com.example.data.FlashcardItem
@@ -8,6 +9,8 @@ import com.example.data.QuizDifficulty
 import com.example.data.QuizQuestion
 import com.example.data.StudyLanguage
 import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
+import com.google.firebase.ai.GenerativeModel
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.content
@@ -34,10 +37,21 @@ data class GeneratedFlashcardsPayload(
     val cards: List<FlashcardItem>
 )
 
-class StudyAiService {
+class StudyAiService(
+    private val appContext: Context
+) {
 
-    private val chatModel by lazy {
-        Firebase.ai.generativeModel(modelName = MODEL_DEFAULT)
+    internal fun ensureReady(): FirebaseApp {
+        val app = ensureFirebaseInitialized(appContext)
+            ?: throw IllegalStateException("Firebase could not be initialized on this device. Please reinstall or check Firebase configuration.")
+        configureAppCheck(appContext, null)
+        Log.d(TAG, "Firebase ready for AI inference (app=${app.name})")
+        return app
+    }
+
+    internal val chatModel: GenerativeModel by lazy {
+        val app = ensureReady()
+        Firebase.ai(app = app).generativeModel(modelName = MODEL_DEFAULT)
     }
 
     private val quizSchema = Schema.obj(
@@ -61,8 +75,9 @@ class StudyAiService {
         )
     )
 
-    private val quizModel by lazy {
-        Firebase.ai.generativeModel(
+    internal val quizModel: GenerativeModel by lazy {
+        val app = ensureReady()
+        Firebase.ai(app = app).generativeModel(
             modelName = MODEL_DEFAULT,
             generationConfig = generationConfig {
                 responseMimeType = "application/json"
@@ -88,8 +103,9 @@ class StudyAiService {
         )
     )
 
-    private val flashcardsModel by lazy {
-        Firebase.ai.generativeModel(
+    internal val flashcardsModel: GenerativeModel by lazy {
+        val app = ensureReady()
+        Firebase.ai(app = app).generativeModel(
             modelName = MODEL_DEFAULT,
             generationConfig = generationConfig {
                 responseMimeType = "application/json"
@@ -228,7 +244,7 @@ class StudyAiService {
         }
     }
 
-    private fun parseQuizPayload(
+    internal fun parseQuizPayload(
         rawJson: String,
         fallbackSubject: String,
         questionType: QuestionType
@@ -256,7 +272,29 @@ class StudyAiService {
                 QuestionType.MCQ -> rawOptions.take(4)
                 QuestionType.FILL_BLANKS, QuestionType.SHORT_ANSWER -> emptyList()
             }
-            val correct = item.optString("correctAnswer").trim()
+            val rawCorrect = item.optString("correctAnswer").trim()
+            val resolvedCorrect = when (questionType) {
+                QuestionType.TRUE_FALSE -> {
+                    if (rawCorrect.equals("false", ignoreCase = true)) "False" else "True"
+                }
+                QuestionType.MCQ -> {
+                    val exact = finalOptions.firstOrNull { it.equals(rawCorrect, ignoreCase = true) }
+                    if (exact != null) {
+                        exact
+                    } else {
+                        val letterMatch = Regex("^(?:option\\s*)?([A-Da-d])(?:[).:\\s]|$)").find(rawCorrect)
+                        val idx = letterMatch?.groupValues?.getOrNull(1)?.uppercase()?.firstOrNull()?.minus('A')
+                        if (idx != null && idx in finalOptions.indices) {
+                            finalOptions[idx]
+                        } else {
+                            finalOptions.firstOrNull {
+                                it.contains(rawCorrect, ignoreCase = true) || rawCorrect.contains(it, ignoreCase = true)
+                            } ?: rawCorrect
+                        }
+                    }
+                }
+                QuestionType.FILL_BLANKS, QuestionType.SHORT_ANSWER -> rawCorrect
+            }
             val explanation = item.optString("explanation").trim()
                 .ifBlank { "Review the core concept from your study material." }
 
@@ -265,7 +303,7 @@ class StudyAiService {
                     index = questions.size,
                     question = qText,
                     options = finalOptions,
-                    correctAnswer = correct,
+                    correctAnswer = resolvedCorrect,
                     explanation = explanation,
                     type = questionType
                 )

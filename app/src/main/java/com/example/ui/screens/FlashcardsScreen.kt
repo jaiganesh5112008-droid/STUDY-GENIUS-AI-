@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
@@ -7,6 +8,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +65,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
@@ -99,6 +103,9 @@ fun FlashcardsScreen(
 
     // Active 3D Flip Deck Study View
     if (uiState.activeDeck != null) {
+        BackHandler {
+            viewModel.closeActiveDeck()
+        }
         val deck = uiState.activeDeck!!
         val masteredCount = uiState.activeCards.count { it.mastered }
         val totalCount = uiState.activeCards.size.coerceAtLeast(1)
@@ -420,6 +427,7 @@ fun FlashcardsScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -447,22 +455,30 @@ fun FlashcardsScreen(
                         .testTag("flashcard_topic_input"),
                     shape = RoundedCornerShape(14.dp)
                 )
-                OutlinedButton(
-                    onClick = { docPicker.launch(DocumentProcessor.SUPPORTED_DOCUMENT_MIMES) },
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(uiState.genMaterial?.displayName ?: "Attach PDF / DOCX / TXT / Image (Optional)")
-                    if (uiState.genMaterial != null) {
+                    OutlinedButton(
+                        onClick = { docPicker.launch(DocumentProcessor.SUPPORTED_DOCUMENT_MIMES) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            Icons.Filled.Close,
-                            contentDescription = "Clear",
-                            modifier = Modifier
-                                .size(18.dp)
-                                .clickable { viewModel.clearGenMaterial() }
+                        Text(
+                            text = uiState.genMaterial?.displayName ?: "Attach PDF / DOCX / TXT / Image",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+                    }
+                    if (uiState.genMaterial != null) {
+                        IconButton(
+                            onClick = { viewModel.clearGenMaterial() },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(Icons.Filled.Close, contentDescription = "Clear attached file")
+                        }
                     }
                 }
 

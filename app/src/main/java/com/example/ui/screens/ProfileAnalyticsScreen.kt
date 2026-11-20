@@ -1,5 +1,10 @@
 package com.example.ui.screens
 
+import android.content.Context
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -21,7 +26,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Lock
@@ -31,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -45,13 +55,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.BuildConfig
 import com.example.R
+import com.example.ai.getFirebaseStatusSummary
 import com.example.data.StudyLanguage
+import com.example.ui.components.AiErrorCard
 import com.example.ui.components.GlassCard
 import com.example.ui.components.StudyTopBar
 import com.example.ui.theme.LocalStudyColors
@@ -60,18 +74,44 @@ import com.example.viewmodel.DashboardUiState
 @Composable
 fun ProfileAnalyticsScreen(
     uiState: DashboardUiState,
+    userEmail: String? = null,
     onToggleTheme: (Boolean) -> Unit,
     onSelectLanguage: (StudyLanguage) -> Unit,
     onUpdateName: (String) -> Unit,
-    onOpenQuiz: (Long) -> Unit
+    onOpenQuiz: (String) -> Unit,
+    onSignOut: () -> Unit = {},
+    onExportBackup: (Context, Uri, (String) -> Unit) -> Unit = { _, _, _ -> },
+    onImportBackup: (Context, Uri, (String) -> Unit) -> Unit = { _, _, _ -> }
 ) {
+    val context = LocalContext.current
     val extended = LocalStudyColors.current
     var showEditNameDialog by remember { mutableStateOf(false) }
+    val (aiReady, aiStatusText) = remember(context) { getFirebaseStatusSummary(context) }
+
+    val exportBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let {
+            onExportBackup(context, it) { msg ->
+                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    val importBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            onImportBackup(context, it) { msg ->
+                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         StudyTopBar(
             title = "Profile & Analytics",
-            subtitle = "Guest Mode • All data saved locally offline"
+            subtitle = "Google Cloud Sync • Notes & quiz history backed up"
         )
 
         LazyColumn(
@@ -79,7 +119,13 @@ fun ProfileAnalyticsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Guest Profile Card
+            if (uiState.cloudSyncError != null) {
+                item {
+                    AiErrorCard(message = uiState.cloudSyncError)
+                }
+            }
+
+            // Authenticated Google Profile Card
             item {
                 GlassCard(
                     modifier = Modifier.fillMaxWidth(),
@@ -104,8 +150,15 @@ fun ProfileAnalyticsScreen(
                                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+                            if (!userEmail.isNullOrBlank()) {
+                                Text(
+                                    text = userEmail,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             Text(
-                                text = "Guest Learner • ${uiState.preferences.streakDays}-day study streak",
+                                text = "Cloud Sync Active • ${uiState.preferences.streakDays}-day study streak",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = extended.emeraldGlow
                             )
@@ -119,6 +172,44 @@ fun ProfileAnalyticsScreen(
                                 contentDescription = "Edit student name",
                                 tint = extended.cyanGlow
                             )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.CloudDone,
+                                contentDescription = stringResource(R.string.cd_cloud_sync),
+                                tint = extended.emeraldGlow,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "${uiState.totalNotesSaved} notes • ${uiState.totalQuizzesCompleted} quiz results in cloud",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = onSignOut,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .height(48.dp)
+                                .testTag("profile_sign_out_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Logout,
+                                contentDescription = stringResource(R.string.cd_sign_out),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(stringResource(R.string.action_sign_out))
                         }
                     }
                 }
@@ -360,7 +451,7 @@ fun ProfileAnalyticsScreen(
             if (uiState.recentAttempts.isNotEmpty()) {
                 item {
                     Text(
-                        text = "Quiz History",
+                        text = "Cloud Quiz History",
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onBackground
                     )
@@ -397,6 +488,90 @@ fun ProfileAnalyticsScreen(
                 }
             }
 
+            // Backup & Sync Study Data Card
+            item {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    borderColor = extended.cyanGlow.copy(alpha = 0.45f)
+                ) {
+                    Text(
+                        text = "Backup & Restore Data",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Your study notes, quizzes, and quiz history sync automatically to Cloud Firestore. You can also export or import a JSON backup file anytime.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { exportBackupLauncher.launch("study_genius_backup.json") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .testTag("profile_export_backup_button"),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Filled.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Export")
+                        }
+                        OutlinedButton(
+                            onClick = { importBackupLauncher.launch(arrayOf("application/json", "text/plain")) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .testTag("profile_import_backup_button"),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Filled.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Restore")
+                        }
+                    }
+                }
+            }
+
+            // App Version & Live AI Engine + Cloud Diagnostics
+            item {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    borderColor = if (aiReady) extended.emeraldGlow.copy(alpha = 0.45f) else MaterialTheme.colorScheme.error.copy(alpha = 0.55f)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Study Genius AI v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "$aiStatusText • Cloud Firestore Connected",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (aiReady) extended.emeraldGlow else MaterialTheme.colorScheme.error
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(if (aiReady) extended.emeraldGlow else MaterialTheme.colorScheme.error)
+                        )
+                    }
+                }
+            }
+
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
@@ -410,7 +585,7 @@ fun ProfileAnalyticsScreen(
                 OutlinedTextField(
                     value = nameInput,
                     onValueChange = { nameInput = it },
-                    label = { Text("Display Name (Guest Mode)") },
+                    label = { Text("Display Name") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )

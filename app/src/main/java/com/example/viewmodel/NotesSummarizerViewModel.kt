@@ -9,8 +9,8 @@ import com.example.ai.MaterialReadResult
 import com.example.ai.PreparedMaterial
 import com.example.ai.StudyAiService
 import com.example.data.StudyLanguage
-import com.example.data.StudyNoteEntity
 import com.example.data.StudyRepository
+import com.example.data.friendlyFirestoreMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +35,8 @@ data class NotesSummarizerUiState(
 
 class NotesSummarizerViewModel(
     private val repository: StudyRepository,
-    private val aiService: StudyAiService
+    private val aiService: StudyAiService,
+    private val currentUserId: String
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(NotesSummarizerUiState())
@@ -154,21 +155,28 @@ class NotesSummarizerViewModel(
                 "${state.selectedNoteStyle}: $baseTitle"
             }
 
-            repository.saveNote(
-                StudyNoteEntity(
-                    title = title,
-                    subject = state.subject.ifBlank { "General" },
-                    category = if (state.isSummarizerTab) "SUMMARY" else "NOTE",
-                    style = if (state.isSummarizerTab) "PDF Summary" else state.selectedNoteStyle,
-                    sourceName = state.material?.displayName.orEmpty(),
-                    content = state.generatedContent
-                )
+            val result = repository.saveCloudNote(
+                userId = currentUserId,
+                title = title,
+                subject = state.subject.ifBlank { "General" },
+                category = if (state.isSummarizerTab) "SUMMARY" else "NOTE",
+                style = if (state.isSummarizerTab) "PDF Summary" else state.selectedNoteStyle,
+                sourceName = state.material?.displayName.orEmpty(),
+                content = state.generatedContent
             )
-            _uiState.update {
-                it.copy(
-                    isSaved = true,
-                    snackbarMessage = "Saved to My Library"
-                )
+            result.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        isSaved = true,
+                        snackbarMessage = "Saved to Cloud Library"
+                    )
+                }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(
+                        errorMessage = friendlyFirestoreMessage(err, "Failed to save note to cloud.")
+                    )
+                }
             }
         }
     }

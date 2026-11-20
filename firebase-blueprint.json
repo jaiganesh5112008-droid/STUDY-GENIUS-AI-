@@ -1,0 +1,271 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated learner profile metadata for Study Genius AI.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Learner display name."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Optional Google account email."
+        },
+        "photoUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Optional Google profile photo URL."
+        },
+        "preferredLanguage": {
+          "type": "string",
+          "enum": ["ENGLISH", "TAMIL", "HINDI", "MALAYALAM", "TELUGU", "KANNADA"],
+          "description": "Preferred study language code."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on each update."
+        }
+      },
+      "required": ["userId", "displayName", "preferredLanguage", "createdAt", "updatedAt"]
+    },
+    "CloudStudyNote": {
+      "title": "CloudStudyNote",
+      "description": "Cloud-persisted AI study note, document summary, or saved AI chat answer.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the note owner."
+        },
+        "title": {
+          "type": "string",
+          "description": "Note or summary title."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Academic subject name."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["NOTE", "SUMMARY", "AI_ANSWER"],
+          "description": "Note classification."
+        },
+        "style": {
+          "type": "string",
+          "description": "Formatting style such as Short Notes, Exam Revision, PDF Summary, or Step-by-Step."
+        },
+        "sourceName": {
+          "type": "string",
+          "description": "Optional source document filename or empty string."
+        },
+        "content": {
+          "type": "string",
+          "description": "Full markdown or plain-text study content."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on update."
+        }
+      },
+      "required": [
+        "userId",
+        "title",
+        "subject",
+        "category",
+        "style",
+        "sourceName",
+        "content",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudQuiz": {
+      "title": "CloudQuiz",
+      "description": "Cloud-persisted generated quiz or timed mock test with native question maps.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the quiz owner."
+        },
+        "title": {
+          "type": "string",
+          "description": "Quiz title."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Academic subject."
+        },
+        "sourceType": {
+          "type": "string",
+          "enum": ["PDF", "DOCX", "TXT", "IMAGE", "NOTES", "MOCK_TEST"],
+          "description": "Origin type of the quiz material."
+        },
+        "sourceName": {
+          "type": "string",
+          "description": "Document name or topic label."
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": ["Easy", "Medium", "Hard"],
+          "description": "Difficulty label."
+        },
+        "questionType": {
+          "type": "string",
+          "enum": ["MCQ", "TRUE_FALSE", "FILL_BLANKS", "SHORT_ANSWER"],
+          "description": "Primary question format."
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "description": "Exam timer duration in minutes."
+        },
+        "questionCount": {
+          "type": "integer",
+          "description": "Number of questions in the quiz."
+        },
+        "questions": {
+          "type": "array",
+          "description": "Native list of structured question objects (index, question, options, correctAnswer, explanation, type)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on update."
+        }
+      },
+      "required": [
+        "userId",
+        "title",
+        "subject",
+        "sourceType",
+        "sourceName",
+        "difficulty",
+        "questionType",
+        "durationMinutes",
+        "questionCount",
+        "questions",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudQuizAttempt": {
+      "title": "CloudQuizAttempt",
+      "description": "Immutable historical quiz or mock test attempt result.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the learner."
+        },
+        "quizId": {
+          "type": "string",
+          "description": "Document ID of the associated CloudQuiz."
+        },
+        "quizTitle": {
+          "type": "string",
+          "description": "Snapshot of the quiz title at attempt time."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Academic subject for analytics."
+        },
+        "mockTest": {
+          "type": "boolean",
+          "description": "Whether the attempt was a timed mock test."
+        },
+        "score": {
+          "type": "integer",
+          "description": "Number of correctly answered questions."
+        },
+        "totalQuestions": {
+          "type": "integer",
+          "description": "Total number of questions evaluated."
+        },
+        "percentage": {
+          "type": "integer",
+          "description": "Score percentage (0 to 100)."
+        },
+        "timeSpentSeconds": {
+          "type": "integer",
+          "description": "Duration spent completing the quiz in seconds."
+        },
+        "userAnswers": {
+          "type": "object",
+          "description": "Native map from question index string to submitted answer."
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on completion."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on creation."
+        }
+      },
+      "required": [
+        "userId",
+        "quizId",
+        "quizTitle",
+        "subject",
+        "mockTest",
+        "score",
+        "totalQuestions",
+        "percentage",
+        "timeSpentSeconds",
+        "userAnswers",
+        "completedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Per-user profile document scoped strictly to the authenticated owner."
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": { "$ref": "#/entities/CloudStudyNote" },
+      "description": "Per-user cloud study notes, document summaries, and saved AI explanations."
+    },
+    "/users/{userId}/quizzes/{quizId}": {
+      "schema": { "$ref": "#/entities/CloudQuiz" },
+      "description": "Per-user cloud quizzes and mock tests."
+    },
+    "/users/{userId}/quizAttempts/{attemptId}": {
+      "schema": { "$ref": "#/entities/CloudQuizAttempt" },
+      "description": "Per-user persistent quiz history and performance analytics."
+    }
+  }
+}

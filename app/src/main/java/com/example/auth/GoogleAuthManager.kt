@@ -158,9 +158,17 @@ class GoogleAuthManager(
         }
     }
 
-    private fun resolveWebClientId(context: Context): String? {
-        return runCatching { context.getString(R.string.default_web_client_id) }
-            .getOrNull()
-            ?.takeIf { it.isNotBlank() }
-    }
+    
+private fun resolveWebClientId(context: Context): String? {
+    return runCatching {
+        val resourceId = context.resources.getIdentifier(
+            "default_web_client_id",
+            "string",
+            context.packageName
+        )
+
+        if (resourceId == 0) null
+        else context.getString(resourceId)
+    }.getOrNull()?.takeIf { it.isNotBlank() }
 }
+

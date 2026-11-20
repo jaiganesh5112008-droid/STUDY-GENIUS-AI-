@@ -154,11 +154,11 @@ class GoogleAuthManager(
             }.onFailure { err ->
                 Log.w(TAG, "clearCredentialState warning", err)
             }
-            auth.signOut()
+                        auth.signOut()
         }
     }
+}
 
-    
 private fun resolveWebClientId(context: Context): String? {
     return runCatching {
         val resourceId = context.resources.getIdentifier(
